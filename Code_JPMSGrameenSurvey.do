@@ -1095,7 +1095,7 @@ drop Q06_1_A_03 - Q06_1_A_17
 * so, if the members of a household uses 'n' such schemes in total, there will be 'n' different values in column savinvest_opt for that hh.
 * I wanted to shape the data in such a way so that for a particular member of a hh, I've their saving/investment profile in the wide format
 * Thus in the desired format, each row represents an individual.
-* So I reshaped the dataset twice - long to wide, followed by wide to long.
+* So I reshaped the dataset twice - wide to long, followed by long to wide.
 * Also, the mem id in this dataset is not the true Id, but the column number.
 * The original member id was in another dataset - formatted the same way where the true member details corresponds to the member column number.
 * So post-reshape, I created ids for each member using the column numbers
