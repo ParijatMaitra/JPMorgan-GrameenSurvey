@@ -1067,4 +1067,124 @@ label values `var' pay`var'
 save 56Own
 clear
 
+* using member level data on savings & investment profiles
+
+use SAVING_06_1_A
+ren Q06_1_A_01 savinvest_opt
+tab savinvest_opt
+
+* Cleaning the data-entry errors
+
+replace savinvest_opt = subinstr( savinvest_opt , ".","", .)
+replace savinvest_opt = subinstr( savinvest_opt , "*","", .)
+replace savinvest_opt = subinstr( savinvest_opt , "/","", .)
+replace savinvest_opt = subinstr( savinvest_opt , "]","", .)
+replace savinvest_opt = subinstr( savinvest_opt , " ","", .)
+replace savinvest_opt = subinstr( savinvest_opt , "  ","", .)
+replace savinvest_opt = "20" if savinvest_opt =="020"
+replace savinvest_opt = "3" if savinvest_opt == "30" | savinvest_opt == "39"
+replace savinvest_opt = "5" if savinvest_opt =="59"
+replace savinvest_opt ="7A" if savinvest_opt == "7a"
+
+drop  if savinvest_opt == ""
+drop Q06_1_A_03 - Q06_1_A_17
+
+* this dataset is shaped in the following manner:
+* column savinvest_opt(renmamed) represents the 30 odd saving/investment instruments(codes),
+* while the corresponding rows in the neighbouring columns(5 in number) represents the investment by a particular member of a given household.
+* so, if the members of a household uses 'n' such schemes in total, there will be 'n' different values in column savinvest_opt for that hh.
+* I wanted to shape the data in such a way so that for a particular member of a hh, I've their saving/investment profile in the wide format
+* Thus in the desired format, each row represents an individual.
+* So I reshaped the dataset twice - long to wide, followed by wide to long.
+* Also, the mem id in this dataset is not the true Id, but the column number.
+* The original member id was in another dataset - formatted the same way where the true member details corresponds to the member column number.
+* So post-reshape, I created ids for each member using the column numbers
+* similarly, in the member id dataset, I created ids for each members using their column numbers
+* And then I merged the two datasets - the member id dataset was considered the master file.
+* So any non-matches were dropped.
+* Post-matching, I dropped the old ids & created new ids using the true member ids.
+* the following algorithm was used 
+
+
+ren savinvest_opt source
+replace source = "7_1" if source == "7A"
+ren ( Q06_1_A_18 Q06_1_A_19 Q06_1_A_20 Q06_1_A_21 Q06_1_A_22) (new_memid1 new_memid2 new_memid3 new_memid4 new_memid5)
+drop if new_memid1 ==. & new_memid2 == . & new_memid3 ==. & new_memid4 ==. & new_memid5 ==.
+
+* trimming the outliers
+foreach k of varlist new_memid1 - new_memid5{
+winsor2 `k' , replace cuts(1 99.9)
+}
+reshape long new_memid, i(state_id dist_id village_id new_hhid source) j(mem_id)
+reshape wide new_memid, i(state_id dist_id village_id new_hhid mem_id) j(source) string
+
+
+ren ( new_memid1 new_memid2 new_memid3 new_memid5 new_memid7 new_memid7_1 new_memid8 new_memid9 new_memid10 ///
+new_memid11 new_memid12 new_memid13 new_memid14 new_memid15 new_memid16 new_memid17 new_memid18 new_memid19 ///
+new_memid20 new_memid22 new_memid23 new_memid24 new_memid25 new_memid26 new_memid27 new_memid28 new_memid29) ///
+(InvGovtBond InvGovUndTkBond InvDebPvtComp InvMutFund InvPOSavScheme InvPPF InvLICPension InvPvtBankPension ///
+InvLICInsurance InvPvtCompInsurance DepoPSUBank DepoPvtBank DepoCoopBank DepoRRB InvLifeInsurance InvHealth ///
+InvAccidentInsurance InvCropInsurance InvEnterpInsurance InvMachineInsurance InvLivStock InvCommFuture InvRealEstate///
+InvBusiness InvPvtFunds InvJewel InvArt)
+
+foreach var of varlist InvGovtBond - InvPvtBankPension{
+replace `var' = 0 if `var' == .
+}
+tostring state, ge(stateid)
+tostring dist_id , ge(distid)
+gen str3  villid =  string( village_id , "%03.0f")
+order villid, a( village_id )
+gen str4  hh =  string( new_hhid , "%04.0f")
+order hh, a( new_hhid )
+gen str2  mem =  string( mem_id , "%02.0f")
+order mem, a( mem_id )
+gen ID = stateid+ distid+ villid+ hh+ mem
+order ID, first
+gen double id = real( ID)
+order id, a(ID)
+format id %13.0f
+duplicates report ID
+save 61A
+clear
+
+use SAVING_06_1_A_MEMID
+drop M03 - M17
+ren ( M18 M19 M20 M21 M22) (new_memid1 new_memid2 new_memid3 new_memid4 new_memid5)
+reshape long new_memid, i(state_id dist_id village_id new_hhid ) j(mem_id)
+drop if new_memid == .
+tostring state, ge(stateid)
+tostring dist_id , ge(distid)
+gen str3  villid =  string( village_id , "%03.0f")
+order villid, a( village_id )
+gen str4  hh =  string( new_hhid , "%04.0f")
+order hh, a( new_hhid )
+gen str2  mem =  string( mem_id , "%02.0f")
+order mem, a( mem_id )
+gen ID = stateid+ distid+ villid+ hh+ mem
+order ID, first
+drop stateid distid villid hh mem
+duplicates report ID
+gen double id = real( ID)
+order id, a(ID)
+format %13.0f id
+save 61AMem
+clear
+
+use 61A
+merge 1:1 id using 61AMem
+drop if _merge ! = 3
+drop _merge ID id mem_id mem
+gen str2  mem =  string( new_memid , "%02.0f")
+gen ID = stateid+ distid+ villid+ hh+ mem
+order ID, first
+drop stateid distid villid hh mem new_memid
+duplicates report ID
+bys ID: drop if ID == ID[_n+1]
+gen double id = real( ID)
+order id, a(ID)
+format %13.0f id
+
+save 61A, replace
+
+
 * Work in progress...
