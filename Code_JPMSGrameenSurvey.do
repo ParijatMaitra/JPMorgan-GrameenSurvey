@@ -1187,4 +1187,466 @@ format %13.0f id
 save 61A, replace
 
 
+* using income shock & portfolio choice data
+
+use SAVING_06_1_A_1
+ren Q06_1_A_SLNO savinvest_opt
+tab savinvest_opt
+
+* cleaning the data-entry errors 
+
+replace savinvest_opt = subinstr( savinvest_opt , ".","", .)
+replace savinvest_opt = subinstr( savinvest_opt , "/","", .)
+replace savinvest_opt = subinstr( savinvest_opt , " ","", .)
+replace savinvest_opt ="7A" if savinvest_opt == "7a"
+replace savinvest_opt = "10" if savinvest_opt == "00"
+replace savinvest_opt = "10" if savinvest_opt == "102"
+replace savinvest_opt = "11" if savinvest_opt == "113"
+replace savinvest_opt = "26" if savinvest_opt == "265"
+replace savinvest_opt = "7A" if savinvest_opt == "74"
+replace savinvest_opt = "7_1" if savinvest_opt == "7A"
+replace savinvest_opt = "3" if savinvest_opt == "33"
+drop if savinvest_opt == ""
+
+ren savinvest_opt source
+
+foreach var of varlist Q06_1_A_23- Q06_1_A_27 {
+replace `var' = 50000 if `var'>50000 & `var' != .
+replace `var' = 1000 if `var'<1000
+}
+foreach var of varlist Q06_1_A_33 - Q06_1_A_37 {
+replace `var' = 500000 if `var'>500000 & `var' != .
+replace `var' = 1000 if `var'<1000
+}
+foreach var of varlist Q06_1_A_43 - Q06_1_A_47 {
+replace `var' = 1000000 if `var'>1000000 & `var' != .
+replace `var' = 1000 if `var'<1000
+}
+foreach var of varlist Q06_1_A_28 - Q06_1_A_32 Q06_1_A_38 - Q06_1_A_42 Q06_1_A_48 - Q06_1_A_52{
+replace `var' = 20 if `var'> 20 & `var'!=.
+replace `var' = 1 if `var'<1
+}
+save 61A1
+
+
+* this dataset is shaped in the following manner:
+* column savinvest_opt(renmamed) represents the 30 odd saving/investment instruments(codes),
+* while the corresponding rows in the neighbouring columns(10 in number) represent the investment by a particular member of a given household,
+* given positive income shocks of Rs 50,000; Rs 5,00,000 & Rs 10,00,000 & the time frames(in yrs.) of these potential investments.
+* if the members of a household uses 'n' such schemes in total, there will be 'n' different values in column savinvest_opt for that hh.
+* So, for a paricular investment instrument - there are 30 columns - 3 income shocks * 10 columns - 5 columns for the investment value & 5 for the time frame
+* I wanted to shape the data in such a way so that for a particular member of a hh, I've their saving/investment profile in the wide format,given a particular income shock.
+* therefore the final dataset would be split into three parts  for 3 income shocks
+* where for a paricular member(each row being a unique member), I've the investment profile & the corresponding time frames(of investment) side by side.
+
+* So I reshaped the dataset twice - wide to long, followed by long to wide.
+* However, beacuse I was dealing with two different categories of vars - investment value & time
+* for each income shocks, I had to split the dataset into two parts - investment & time,
+* post-split, I reshaped each individual datasets twice & then linked them using a common Id
+
+* Also, the mem id in this merged dataset is not the true Id, but the column number.
+* The original member id was in another dataset - formatted the same way where the true member details corresponds to the member column number.
+* So post-reshape & merger, I created ids for each member using the column numbers
+* similarly, in the member id dataset, I created ids for each members using their column numbers
+* And then I merged the two datasets - So any non-matches were dropped.
+* Post-matching, I dropped the old ids & created new ids using the true member ids.
+
+* the following algorithm was used for each of the three income shock datasets
+
+
+
+* income shock of Rs. 50,000
+
+drop Q06_1_A_28 - Q06_1_A_52
+ren ( Q06_1_A_23 Q06_1_A_24 Q06_1_A_25 Q06_1_A_26 Q06_1_A_27) (new_memid1 new_memid2 new_memid3 new_memid4 new_memid5)
+drop  if new_memid1 == . & new_memid2 == . & new_memid3 == . & new_memid4 == . & new_memid5 == .
+
+reshape long new_memid, i(state_id dist_id village_id new_hhid source) j(mem_id)
+reshape wide new_memid, i(state_id dist_id village_id new_hhid mem_id) j(source) string
+
+ren ( new_memid1 new_memid2 new_memid3 new_memid4 new_memid5 new_memid6 new_memid7 new_memid7_1 new_memid8///
+new_memid9 new_memid10 new_memid11 new_memid12 new_memid13 new_memid14 new_memid15 new_memid16 new_memid17 ///
+new_memid18 new_memid19 new_memid20 new_memid21new_memid22 new_memid23 new_memid24 new_memid25 new_memid26 ///
+new_memid27 new_memid28 new_memid29) (InvGovtBond InvGovUndTkBond InvDebPvtComp InvEquiPvtComp InvMutFund InvDeriv ///
+InvPOSavScheme InvPPF InvLICPension InvPvtBankPension InvLICInsurance InvPvtCompInsurance DepoPSUBank DepoPvtBank ///
+DepoCoopBank DepoRRB InvLifeInsurance InvHealth InvAccidentInsurance InvCropInsurance InvEnterpInsurance InvPropInsurance ///
+InvMachineInsurance InvLivStock InvCommFuture InvRealEstate InvBusiness InvPvtFunds InvJewel InvArt)
+
+foreach var of varlist InvGovtBond - InvPvtBankPension{
+replace `var' = 0 if `var' == .
+ren `var' `var'50k
+} 
+egen sum = rowtotal( InvGovtBond50k - InvPvtBankPension50k)
+assert sum < = 50000
+drop if sum>50000
+drop  if sum == 0
+drop sum
+
+tostring state, ge(stateid)
+tostring dist_id , ge(distid)
+gen str3  villid =  string( village_id , "%03.0f")
+order villid, a( village_id )
+gen str4  hh =  string( new_hhid , "%04.0f")
+order hh, a( new_hhid )
+gen str2  mem =  string( mem_id , "%02.0f")
+order mem, a( mem_id )
+gen ID = stateid+ distid+ villid+ hh+ mem
+order ID, first
+duplicates report ID
+gen double id = real( ID)
+format id %13.0f
+order id, a(ID)
+
+save 61A150kInv
+clear
+
+use 61A1
+drop Q06_1_A_23 - Q06_1_A_27 Q06_1_A_33 - Q06_1_A_52
+ren ( Q06_1_A_28 Q06_1_A_29 Q06_1_A_30 Q06_1_A_31 Q06_1_A_32 ) (new_memid1 new_memid2 new_memid3 new_memid4 new_memid5)
+drop  if new_memid1 == . & new_memid2 == . & new_memid3 == . & new_memid4 == . & new_memid5 == .
+
+reshape long new_memid, i(state_id dist_id village_id new_hhid source) j(mem_id)
+reshape wide new_memid, i(state_id dist_id village_id new_hhid mem_id) j(source) string
+
+ren ( new_memid1 new_memid2 new_memid3 new_memid4 new_memid5 new_memid6 new_memid7 new_memid7_1 new_memid8 ///
+new_memid9 new_memid10 new_memid11 new_memid12 new_memid13 new_memid14 new_memid15 new_memid16 new_memid17 ///
+new_memid18 new_memid19  new_memid21 new_memid22 new_memid23 new_memid24 new_memid25 new_memid26 new_memid27 ///
+new_memid28 new_memid29)(InvGovtBond InvGovUndTkBond InvDebPvtComp InvEquiPvtComp InvMutFund InvDeriv InvPOSavScheme ///
+InvPPF InvLICPension InvPvtBankPension InvLICInsurance InvPvtCompInsurance DepoPSUBank DepoPvtBank DepoCoopBank DepoRRB ///
+InvLifeInsurance InvHealth InvAccidentInsurance InvCropInsurance InvPropInsurance InvMachineInsurance InvLivStock InvCommFuture///
+InvRealEstate InvBusiness InvPvtFunds InvJewel InvArt)
+
+foreach var of varlist InvGovtBond - InvPvtBankPension{
+replace `var' = 0 if `var' == .
+ren `var' Time`var'
+}
+tostring state, ge(stateid)
+tostring dist_id , ge(distid)
+gen str3  villid =  string( village_id , "%03.0f")
+order villid, a( village_id )
+gen str4  hh =  string( new_hhid , "%04.0f")
+order hh, a( new_hhid )
+gen str2  mem =  string( mem_id , "%02.0f")
+order mem, a( mem_id )
+gen ID = stateid+ distid+ villid+ hh+ mem
+order ID, first
+duplicates report ID
+gen double id = real( ID)
+format id %13.0f
+order id, a(ID)
+
+save 61A150kTime
+clear
+
+use 61A150kInv
+merge 1:1 id using 61A150kTime
+drop if _merge != 3
+drop _merge
+
+save 61A150kInv, replace
+clear
+
+use SAVING_06_1_A_1_MEMID
+drop M28 - M52
+ren ( M23 M24 M25 M26 M27 ) (new_memid1 new_memid2 new_memid3 new_memid4 new_memid5)
+
+reshape long new_memid, i(state_id dist_id village_id new_hhid ) j(mem_id)
+
+drop if new_memid == .
+
+tostring state, ge(stateid)
+tostring dist_id , ge(distid)
+gen str3  villid =  string( village_id , "%03.0f")
+order villid, a( village_id )
+gen str4  hh =  string( new_hhid , "%04.0f")
+order hh, a( new_hhid )
+gen str2  mem =  string( mem_id , "%02.0f")
+order mem, a( mem_id )
+gen ID = stateid+ distid+ villid+ hh+ mem
+order ID, first
+duplicates report ID
+gen double id = real( ID)
+format id %13.0f
+order id, a(ID)
+
+save 61A150kMem
+clear
+
+use 61A150kInv
+merge 1:1 id using 61A150kMem
+drop  if _merge != 3
+drop ID id _merge mem
+gen str2  mem =  string( new_memid , "%02.0f")
+gen ID = stateid+ distid+ villid+ hh+ mem
+order ID, first
+drop stateid distid villid hh mem new_memid
+duplicates report ID
+bys ID: drop if ID == ID[_n+1]
+gen double id = real( ID)
+order id, a(ID)
+format %13.0f id
+
+save 61A150kInv, replace
+
+*income shock of Rs. 5 Lakh
+
+use 61A1
+drop Q06_1_A_23 -  Q06_1_A_32 Q06_1_A_38 - Q06_1_A_52
+ren ( Q06_1_A_33 Q06_1_A_34 Q06_1_A_35 Q06_1_A_36 Q06_1_A_37 ) (new_memid1 new_memid2 new_memid3 new_memid4 new_memid5)
+drop  if new_memid1 == . & new_memid2 == . & new_memid3 == . & new_memid4 == . & new_memid5 == .
+reshape long new_memid, i(state_id dist_id village_id new_hhid source) j(mem_id)
+reshape wide new_memid, i(state_id dist_id village_id new_hhid mem_id) j(source) string
+
+ren ( new_memid1 new_memid2 new_memid3 new_memid4 new_memid5 new_memid6 new_memid7 new_memid7_1 new_memid8///
+new_memid9 new_memid10 new_memid11 new_memid12 new_memid13 new_memid14 new_memid15 new_memid16 new_memid17 ///
+new_memid18 new_memid19 new_memid20 new_memid21new_memid22 new_memid23 new_memid24 new_memid25 new_memid26 ///
+new_memid27 new_memid28 new_memid29) (InvGovtBond InvGovUndTkBond InvDebPvtComp InvEquiPvtComp InvMutFund InvDeriv ///
+InvPOSavScheme InvPPF InvLICPension InvPvtBankPension InvLICInsurance InvPvtCompInsurance DepoPSUBank DepoPvtBank ///
+DepoCoopBank DepoRRB InvLifeInsurance InvHealth InvAccidentInsurance InvCropInsurance InvEnterpInsurance InvPropInsurance ///
+InvMachineInsurance InvLivStock InvCommFuture InvRealEstate InvBusiness InvPvtFunds InvJewel InvArt)
+
+foreach var of varlist InvGovtBond - InvPvtBankPension{
+replace `var' = 0 if `var' == .
+ren `var' `var'5Lakh
+}
+egen sum = rowtotal( InvGovtBond5Lakh - InvPvtBankPension5Lakh)
+assert sum < = 500000
+drop if sum>500000
+drop  if sum == 0
+drop sum
+
+tostring state, ge(stateid)
+tostring dist_id , ge(distid)
+gen str3  villid =  string( village_id , "%03.0f")
+order villid, a( village_id )
+gen str4  hh =  string( new_hhid , "%04.0f")
+order hh, a( new_hhid )
+gen str2  mem =  string( mem_id , "%02.0f")
+order mem, a( mem_id )
+gen ID = stateid+ distid+ villid+ hh+ mem
+order ID, first
+duplicates report ID
+gen double id = real( ID)
+format id %13.0f
+order id, a(ID)
+
+save 61A15LakhInv
+
+clear
+use 61A1
+
+drop Q06_1_A_23 - Q06_1_A_37 Q06_1_A_43 - Q06_1_A_52
+ren ( Q06_1_A_38 Q06_1_A_39 Q06_1_A_40 Q06_1_A_41 Q06_1_A_42 ) (new_memid1 new_memid2 new_memid3 new_memid4 new_memid5)
+drop  if new_memid1 == . & new_memid2 == . & new_memid3 == . & new_memid4 == . & new_memid5 == .
+
+reshape long new_memid, i(state_id dist_id village_id new_hhid source) j(mem_id)
+reshape wide new_memid, i(state_id dist_id village_id new_hhid mem_id) j(source) string
+
+ren ( new_memid1 new_memid2 new_memid3 new_memid4 new_memid5 new_memid6 new_memid7 new_memid7_1 new_memid8///
+new_memid9 new_memid10 new_memid11 new_memid12 new_memid13 new_memid14 new_memid15 new_memid16 new_memid17 ///
+new_memid18 new_memid19 new_memid20 new_memid21new_memid22 new_memid23 new_memid24 new_memid25 new_memid26 ///
+new_memid27 new_memid28 new_memid29) (InvGovtBond InvGovUndTkBond InvDebPvtComp InvEquiPvtComp InvMutFund InvDeriv ///
+InvPOSavScheme InvPPF InvLICPension InvPvtBankPension InvLICInsurance InvPvtCompInsurance DepoPSUBank DepoPvtBank ///
+DepoCoopBank DepoRRB InvLifeInsurance InvHealth InvAccidentInsurance InvCropInsurance InvEnterpInsurance InvPropInsurance ///
+InvMachineInsurance InvLivStock InvCommFuture InvRealEstate InvBusiness InvPvtFunds InvJewel InvArt)
+
+foreach var of varlist InvGovtBond - InvPvtBankPension{
+replace `var' = 0 if `var' == .
+ren `var' Time`var'
+}
+tostring state, ge(stateid)
+tostring dist_id , ge(distid)
+gen str3  villid =  string( village_id , "%03.0f")
+order villid, a( village_id )
+gen str4  hh =  string( new_hhid , "%04.0f")
+order hh, a( new_hhid )
+gen str2  mem =  string( mem_id , "%02.0f")
+order mem, a( mem_id )
+gen ID = stateid+ distid+ villid+ hh+ mem
+order ID, first
+duplicates report ID
+gen double id = real( ID)
+format id %13.0f
+order id, a(ID)
+
+save 61A15LakhTime
+
+use 61A15LakhInv
+merge 1:1 id using 61A15LakhTime
+drop if _merge != 3
+drop _merge
+save 61A15LakhInv, replace
+
+use SAVING_06_1_A_1_MEMID
+drop M23 - M32 M38 - M52
+ren ( M33 M34 M35 M36 M37 ) (new_memid1 new_memid2 new_memid3 new_memid4 new_memid5)
+reshape long new_memid, i(state_id dist_id village_id new_hhid ) j(mem_id)
+drop if new_memid == .
+
+tostring state, ge(stateid)
+tostring dist_id , ge(distid)
+gen str3  villid =  string( village_id , "%03.0f")
+order villid, a( village_id )
+gen str4  hh =  string( new_hhid , "%04.0f")
+order hh, a( new_hhid )
+gen str2  mem =  string( mem_id , "%02.0f")
+order mem, a( mem_id )
+gen ID = stateid+ distid+ villid+ hh+ mem
+order ID, first
+duplicates report ID
+gen double id = real( ID)
+format id %13.0f
+order id, a(ID)
+
+save 61A15LakhMem
+clear
+
+use 61A15LakhInv
+merge 1:1 id using 61A15LakhMem
+drop  if _merge != 3
+drop ID id _merge mem
+gen str2  mem =  string( new_memid , "%02.0f")
+gen ID = stateid+ distid+ villid+ hh+ mem
+order ID, first
+drop stateid distid villid hh mem new_memid
+duplicates report ID
+bys ID: drop if ID == ID[_n+1]
+gen double id = real( ID)
+order id, a(ID)
+format %13.0f id
+save 61A15LakhInv, replace
+clear
+
+* income shock of Rs. 10 Lakh
+
+use 61A1
+drop Q06_1_A_23 -  Q06_1_A_42 Q06_1_A_48 - Q06_1_A_52
+ren ( Q06_1_A_43 Q06_1_A_44 Q06_1_A_45 Q06_1_A_46 Q06_1_A_47 ) (new_memid1 new_memid2 new_memid3 new_memid4 new_memid5)
+drop  if new_memid1 == . & new_memid2 == . & new_memid3 == . & new_memid4 == . & new_memid5 == .
+
+reshape long new_memid, i(state_id dist_id village_id new_hhid source) j(mem_id)
+reshape wide new_memid, i(state_id dist_id village_id new_hhid mem_id) j(source) string
+
+ren ( new_memid1 new_memid2 new_memid3 new_memid4 new_memid5 new_memid6 new_memid7 new_memid7_1 new_memid8///
+new_memid9 new_memid10 new_memid11 new_memid12 new_memid13 new_memid14 new_memid15 new_memid16 new_memid17 ///
+new_memid18 new_memid19 new_memid20 new_memid21new_memid22 new_memid23 new_memid24 new_memid25 new_memid26 ///
+new_memid27 new_memid28 new_memid29) (InvGovtBond InvGovUndTkBond InvDebPvtComp InvEquiPvtComp InvMutFund InvDeriv ///
+InvPOSavScheme InvPPF InvLICPension InvPvtBankPension InvLICInsurance InvPvtCompInsurance DepoPSUBank DepoPvtBank ///
+DepoCoopBank DepoRRB InvLifeInsurance InvHealth InvAccidentInsurance InvCropInsurance InvEnterpInsurance InvPropInsurance ///
+InvMachineInsurance InvLivStock InvCommFuture InvRealEstate InvBusiness InvPvtFunds InvJewel InvArt)
+
+foreach var of varlist InvGovtBond - InvPvtBankPension{
+replace `var' = 0 if `var' == .
+ren `var' `var'10Lakh
+}
+egen sum = rowtotal( InvGovtBond10Lakh - InvPvtBankPension10Lakh)
+assert sum < = 1000000
+drop if sum>1000000
+drop  if sum == 0
+drop sum
+
+tostring state, ge(stateid)
+tostring dist_id , ge(distid)
+gen str3  villid =  string( village_id , "%03.0f")
+order villid, a( village_id )
+gen str4  hh =  string( new_hhid , "%04.0f")
+order hh, a( new_hhid )
+gen str2  mem =  string( mem_id , "%02.0f")
+order mem, a( mem_id )
+gen ID = stateid+ distid+ villid+ hh+ mem
+order ID, first
+duplicates report ID
+gen double id = real( ID)
+format id %13.0f
+order id, a(ID)
+
+save 61A110LakhInv
+clear
+
+use 61A1
+drop Q06_1_A_23 - Q06_1_A_47
+ren ( Q06_1_A_48 Q06_1_A_49 Q06_1_A_50 Q06_1_A_51 Q06_1_A_52 ) (new_memid1 new_memid2 new_memid3 new_memid4 new_memid5)
+drop  if new_memid1 == . & new_memid2 == . & new_memid3 == . & new_memid4 == . & new_memid5 == .
+
+reshape long new_memid, i(state_id dist_id village_id new_hhid source) j(mem_id)
+reshape wide new_memid, i(state_id dist_id village_id new_hhid mem_id) j(source) string
+
+ren ( new_memid1 new_memid2 new_memid3 new_memid4 new_memid5 new_memid6 new_memid7 new_memid7_1 new_memid8///
+new_memid9 new_memid10 new_memid11 new_memid12 new_memid13 new_memid14 new_memid15 new_memid16 new_memid17 ///
+new_memid18 new_memid19 new_memid20 new_memid21new_memid22 new_memid23 new_memid24 new_memid25 new_memid26 ///
+new_memid27 new_memid28 new_memid29) (InvGovtBond InvGovUndTkBond InvDebPvtComp InvEquiPvtComp InvMutFund InvDeriv ///
+InvPOSavScheme InvPPF InvLICPension InvPvtBankPension InvLICInsurance InvPvtCompInsurance DepoPSUBank DepoPvtBank ///
+DepoCoopBank DepoRRB InvLifeInsurance InvHealth InvAccidentInsurance InvCropInsurance InvEnterpInsurance InvPropInsurance ///
+InvMachineInsurance InvLivStock InvCommFuture InvRealEstate InvBusiness InvPvtFunds InvJewel InvArt)
+
+foreach var of varlist InvGovtBond - InvPvtBankPension{
+replace `var' = 0 if `var' == .
+ren `var' Time`var'
+}
+
+tostring state, ge(stateid)
+tostring dist_id , ge(distid)
+gen str3  villid =  string( village_id , "%03.0f")
+order villid, a( village_id )
+gen str4  hh =  string( new_hhid , "%04.0f")
+order hh, a( new_hhid )
+gen str2  mem =  string( mem_id , "%02.0f")
+order mem, a( mem_id )
+gen ID = stateid+ distid+ villid+ hh+ mem
+order ID, first
+duplicates report ID
+gen double id = real( ID)
+format id %13.0f
+order id, a(ID)
+
+save 61A110LakhTime
+clear
+
+use 61A110LakhInv
+merge 1:1 id using 61A110LakhTime
+drop if _merge != 3
+drop _merge
+save 61A110LakhInv, replace
+
+use SAVING_06_1_A_1_MEMID
+drop M23 - M42 M48 - M52
+ren ( M43 M44 M45 M46 M47 ) (new_memid1 new_memid2 new_memid3 new_memid4 new_memid5)
+reshape long new_memid, i(state_id dist_id village_id new_hhid ) j(mem_id)
+drop if new_memid == .
+
+tostring state, ge(stateid)
+tostring dist_id , ge(distid)
+gen str3  villid =  string( village_id , "%03.0f")
+order villid, a( village_id )
+gen str4  hh =  string( new_hhid , "%04.0f")
+order hh, a( new_hhid )
+gen str2  mem =  string( mem_id , "%02.0f")
+order mem, a( mem_id )
+gen ID = stateid+ distid+ villid+ hh+ mem
+order ID, first
+duplicates report ID
+gen double id = real( ID)
+format id %13.0f
+order id, a(ID)
+
+save 61A110LakhMem
+clear
+
+use 61A110LakhInv
+merge 1:1 id using 61A110LakhMem
+drop  if _merge != 3
+drop ID id _merge mem
+gen str2  mem =  string( new_memid , "%02.0f")
+gen ID = stateid+ distid+ villid+ hh+ mem
+order ID, first
+drop stateid distid villid hh mem new_memid
+duplicates report ID
+bys ID: drop if ID == ID[_n+1]
+gen double id = real( ID)
+order id, a(ID)
+format %13.0f id
+save 61A110LakhInv, replace
+clear
+
+
 * Work in progress...
