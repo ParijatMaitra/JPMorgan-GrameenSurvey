@@ -1648,5 +1648,654 @@ format %13.0f id
 save 61A110LakhInv, replace
 clear
 
+* using data on parents' perception of their child's school
 
-* Work in progress...
+* the data is shaped in the following manner:
+* the column Source(renamed)represents the different criteria used to assess the quality of the schools(10 criteria in all)
+* corresponding to each criteria, there were 12 columns(6 for mother & 6 for father) where the parents individually assess the school quality of each child.
+* I wanted to shape the data in such a way so that each row represented one parent
+* the dummy var mother - 1 for mother, 0 for father was used to differentiate the parents.
+* and the columns represented the ten set of criteria.
+* the ids for the individual child was provided in a separate file.
+* So, I split the data into two parts - mother & father.
+* reshaped it twice - wide to long & long to wide.
+* split the child id data - for mother & father
+* matched the ids with the parents' data individually(mother & father)
+* & appended the father's portion of the data to the mother's portion.
+* the following algorithm was used.
+
+use EDUCATION_7_1
+drop Q07_1_09 - Q07_1_14
+ren Q07_1_01 Source
+ren ( Q07_1_03 Q07_1_04 Q07_1_05 Q07_1_06 Q07_1_07 Q07_1_08) (new_memid1 new_memid2 new_memid3 new_memid4 new_memid5 new_memid6)
+generate source = strofreal(Source)
+drop if Source == .
+replace source = "source" + subinstr(source,".","_",.)
+drop Source
+reshape long new_memid, i(state_id dist_id village_id new_hhid source) j(mem_id)
+reshape wide new_memid, i(state_id dist_id village_id new_hhid mem_id) j(source) string
+ren ( new_memidsource1 new_memidsource2 new_memidsource3 new_memidsource4 new_memidsource5 new_memidsource6 ///
+new_memidsource7 new_memidsource8 new_memidsource9 new_memidsource10) (SchoolEaseAccess SchoolRightCat ///
+SchoolEduQuality SchoolFacilityAvl SchoolNoonMeal SchoolPrestige SchoolMedInstrOfChoice SchoolReligInstr ///
+SchoolOthStuCasteRelig SchoolAfford)
+
+foreach var of varlist SchoolEaseAccess - SchoolOthStuCasteRelig{
+label define `var'criteria 1 "Yes" 2 "No"
+label values `var' `var'criteria
+}
+gen mother = 1
+order mother, a( new_hhid)
+
+foreach var of varlist SchoolEaseAccess - SchoolOthStuCasteRelig{
+replace `var' = 0 if `var' == .
+}
+egen sum = rowtotal( SchoolEaseAccess - SchoolOthStuCasteRelig)
+drop if sum == 0
+drop sum
+tostring state, ge(stateid)
+tostring dist_id , ge(distid)
+gen str3  villid =  string( village_id , "%03.0f")
+order villid, a( village_id )
+gen str4  hh =  string( new_hhid , "%04.0f")
+order hh, a( new_hhid )
+gen HHID = stateid+ distid+ villid+ hh
+order HHID, first
+drop stateid distid villid hh
+gen double hhid = real( HHID)
+format hhid %11.0f
+order hhid, a(HHID)
+save 71EduMother
+clear
+
+use EDUCATION_7_1
+drop Q07_1_03 - Q07_1_08
+ren Q07_1_01 Source
+ren ( Q07_1_09 Q07_1_10 Q07_1_11 Q07_1_12 Q07_1_13 Q07_1_14 ) (new_memid1 new_memid2 new_memid3 new_memid4 new_memid5 new_memid6)
+generate source = strofreal(Source)
+drop if Source == .
+replace source = "source" + subinstr(source,".","_",.)
+drop Source
+reshape long new_memid, i(state_id dist_id village_id new_hhid source) j(mem_id)
+reshape wide new_memid, i(state_id dist_id village_id new_hhid mem_id) j(source) string
+ren ( new_memidsource1 new_memidsource2 new_memidsource3 new_memidsource4 new_memidsource5 new_memidsource6 new_memidsource7 ///
+new_memidsource8 new_memidsource9 new_memidsource10) (SchoolEaseAccess SchoolRightCat SchoolEduQuality SchoolFacilityAvl ///
+SchoolNoonMeal SchoolPrestige SchoolMedInstrOfChoice SchoolReligInstr SchoolOthStuCasteRelig SchoolAfford)
+foreach var of varlist SchoolEaseAccess - SchoolOthStuCasteRelig{
+label define `var'criteria 1 "Yes" 2 "No"
+label values `var' `var'criteria
+}
+gen mother = 0
+order mother, a( new_hhid)
+foreach var of varlist SchoolEaseAccess - SchoolOthStuCasteRelig{
+replace `var' = 0 if `var' == .
+}
+egen sum = rowtotal( SchoolEaseAccess - SchoolOthStuCasteRelig)
+drop if sum == 0
+drop sum
+tostring state, ge(stateid)
+tostring dist_id , ge(distid)
+gen str3  villid =  string( village_id , "%03.0f")
+order villid, a( village_id )
+gen str4  hh =  string( new_hhid , "%04.0f")
+order hh, a( new_hhid )
+gen HHID = stateid+ distid+ villid+ hh
+order HHID, first
+drop stateid distid villid hh
+gen double hhid = real( HHID)
+format hhid %11.0f
+order hhid, a(HHID)
+save 71EduFather
+clear
+
+use EDUCATION_7_1_MEMID
+drop CH_ID09 - CH_ID14
+ren ( CH_ID03 CH_ID04 CH_ID05 CH_ID06 CH_ID07 CH_ID08) (new_memid1 new_memid2 new_memid3 new_memid4 new_memid5 new_memid6)
+reshape long new_memid, i(state_id dist_id village_id new_hhid ) j(mem_id)
+drop  if new_memid == .
+tostring state, ge(stateid)
+tostring dist_id , ge(distid)
+gen str3  villid =  string( village_id , "%03.0f")
+order villid, a( village_id )
+gen str4  hh =  string( new_hhid , "%04.0f")
+order hh, a( new_hhid )
+gen HHID = stateid+ distid+ villid+ hh
+order HHID, first
+drop stateid distid villid hh
+gen double hhid = real( HHID)
+format hhid %11.0f
+order hhid, a(HHID)
+save 71EduMemMother
+clear
+
+use EDUCATION_7_1_MEMID
+drop CH_ID03 - CH_ID08
+ren ( CH_ID09 CH_ID10 CH_ID11 CH_ID12 CH_ID13 CH_ID14 ) (new_memid1 new_memid2 new_memid3 new_memid4 new_memid5 new_memid6)
+reshape long new_memid, i(state_id dist_id village_id new_hhid ) j(mem_id)
+drop  if new_memid == .
+tostring state, ge(stateid)
+tostring dist_id , ge(distid)
+gen str3  villid =  string( village_id , "%03.0f")
+order villid, a( village_id )
+gen str4  hh =  string( new_hhid , "%04.0f")
+order hh, a( new_hhid )
+gen HHID = stateid+ distid+ villid+ hh
+order HHID, first
+drop stateid distid villid hh
+gen double hhid = real( HHID)
+format hhid %11.0f
+order hhid, a(HHID)
+save 71EduMemFather
+clear
+
+use 71EduMother
+merge 1:1 hhid mem_id using 71EduMemMother
+drop if _merge != 3
+drop _merge
+drop HHID hhid
+drop mem_id
+order new_memid, a( new_hhid)
+tostring state, ge(stateid)
+tostring dist_id , ge(distid)
+gen str3  villid =  string( village_id , "%03.0f")
+order villid, a( village_id )
+gen str4  hh =  string( new_hhid , "%04.0f")
+order hh, a( new_hhid )
+gen str2  mem =  string( new_memid , "%02.0f")
+order mem, a( new_memid )
+gen ID = stateid+ distid+ villid+ hh+ mem
+order ID, first
+drop stateid distid villid hh mem
+duplicates report ID
+bys ID: drop if ID == ID[_n+1]
+gen double id = real( ID)
+order id, a(ID)
+format %13.0f id
+save 71EduMother, replace
+clear
+
+use 71EduFather
+merge 1:1 hhid mem_id using 71EduMemFather
+drop if _merge != 3
+drop _merge
+drop HHID hhid
+drop mem_id
+order new_memid, a( new_hhid)
+tostring state, ge(stateid)
+tostring dist_id , ge(distid)
+gen str3  villid =  string( village_id , "%03.0f")
+order villid, a( village_id )
+gen str4  hh =  string( new_hhid , "%04.0f")
+order hh, a( new_hhid )
+gen str2  mem =  string( new_memid , "%02.0f")
+order mem, a( new_memid )
+gen ID = stateid+ distid+ villid+ hh+ mem
+order ID, first
+drop stateid distid villid hh mem
+duplicates report ID
+bys ID: drop if ID == ID[_n+1]
+gen double id = real( ID)
+order id, a(ID)
+format %13.0f id
+save 71EduFather, replace
+clear
+
+use 71EduMother
+append using 71EduFather
+sort id
+tab mother
+save 71EduSchool
+clear
+
+* using data on student's perception of school performance
+
+use PERFORMANCE_7_2
+
+ren ( Q07_2_02 Q07_2_03 Q07_2_04 Q07_2_05 Q07_2_06 Q07_2_07 Q07_2_08 Q07_2_09 Q07_2_10 Q07_2_11 Q07_2_12 Q07_2_13 ///
+Q07_2_14 Q07_2_15 Q07_2_16 Q07_2_17 Q07_2_18) (SchoolID Class SchoolModeTransport NoOfTeachers TeachersAbsentPerMonth ///
+NoonMealProg NoStudentsClass AdequateSpaceSit SepRoomEachStandards ClassSitArrange IsThereBlackBoard TeacherTakeTimeExplain ///
+TeacherUpsetAskQues ToiletAvailability ToiletFunctioning PlayGround DrinkingWaterFacility)
+
+foreach var of varlist NoonMealProg AdequateSpaceSit SepRoomEachStandards IsThereBlackBoard TeacherTakeTimeExplain TeacherUpsetAskQues ///
+ToiletAvailability PlayGround ToiletFunctioning DrinkingWaterFacility{
+label define `var'perf 1 "Yes" 2 "No"
+label values `var' `var'perf
+}
+foreach var of varlist NoonMealProg AdequateSpaceSit SepRoomEachStandards IsThereBlackBoard TeacherTakeTimeExplain TeacherUpsetAskQues ///
+ToiletAvailability PlayGround ToiletFunctioning DrinkingWaterFacility{
+replace `var' = . if `var'>2 | `var' <1
+}
+tab Class, mi
+tab NoOfTeachers, mi
+winsor2 NoOfTeachers, cuts(0.1 99)
+replace NoOfTeachers = NoOfTeachers_w
+drop NoOfTeachers_w
+tab TeachersAbsentPerMonth, mi
+tab NoStudentsClass, mi
+winsor2 NoStudentsClass, cuts(0.1 99)
+replace NoStudentsClass = NoStudentsClass_w
+drop NoStudentsClass_w
+label define transp 1 "Cycle rickshaw" 2 "Auto rickshaw" 3 "Taxi/Tempo" 4 "Bus/Train" 5 "Bullock cart" 6 "Bicycle" 7 "Two-wheeler" 8 "On foot"
+label values SchoolModeTransport transp
+label define sit 1 "On bench & chairs" 2 "Sit on the ground" 3 "Sitting under a tree"
+label values ClassSitArrange sit
+tostring state, ge(stateid)
+tostring dist_id , ge(distid)
+gen str3  villid =  string( village_id , "%03.0f")
+order villid, a( village_id )
+gen str4  hh =  string( new_hhid , "%04.0f")
+order hh, a( new_hhid )
+gen str2  mem =  string( new_memid , "%02.0f")
+order mem, a( new_memid )
+gen ID = stateid+ distid+ villid+ hh+ mem
+order ID, first
+drop stateid distid villid hh mem
+duplicates report ID
+bys ID: drop if ID == ID[_n+1]
+gen double id = real( ID)
+order id, a(ID)
+format %13.0f id
+save 72SchoolPerf
+clear
+
+* using data on parent's participation in village education committee(VEC)/School management committee(SMC) meetings.
+
+use VILLAGE_EDUCATION_7_3
+
+tostring state, ge(stateid)
+tostring dist_id , ge(distid)
+gen str3  villid =  string( village_id , "%03.0f")
+order villid, a( village_id )
+gen str4  hh =  string( new_hhid , "%04.0f")
+order hh, a( new_hhid )
+gen str2  mem =  string( new_memid , "%02.0f")
+order mem, a( new_memid )
+gen ID = stateid+ distid+ villid+ hh+ mem
+order ID, first
+drop stateid distid villid hh mem
+gen double id = real( ID)
+order id, a(ID)
+format %13.0f id
+sort id sl_no
+ren sl_no MeetingNo
+ren ( Q07_3_03 Q07_3_04 Q07_3_05 Q07_3_06 Q07_3_07 Q07_3_08 Q07_3_09 Q07_3_10 Q07_3_11 Q07_3_12 Q07_3_13 Q07_3_14 Q07_3_15_1 Q07_3_15_2 ///
+Q07_3_15_3 Q07_3_15_4) (VECorSMCmember WhetherAttended Year Month HowLongMeetLast Issue1Disc Issue2Disc Issue3Disc WereIssuesRelevant ///
+ParticipatedHow WhetherIssueResolved ReasonsNotAttending Roles1 Roles2 Roles3 Roles4)
+tab WhetherIssueResolved
+foreach var of varlist WhetherAttended WereIssuesRelevant WhetherIssueResolved{
+label define `var'cat 1 "Yes" 2 "No"
+label values `var' `var'cat
+}
+label define member 1 "Yes" 2 "No" 3 "Don't Know"
+label values VECorSMCmember member
+
+
+foreach var of varlist Issue1Disc - Issue3Disc{
+label define `var'issue 1 "Maintenance & upkeep/upgradation/construction of school buildings" 2 "Improvement of school environment" 3 ///
+"Monitoring the attendance & performance of teachers" 4 "Discussing various complaints made by parents of children enrolled in school" ///
+5 "Sanitation facilities in school premises" 6 "Drinking water facilities in school premises" 7 "Non-enrollment & issues of drop-outs" ///
+8 "Improving schooling habits of children"
+label values `var' `var'issue
+}
+label define part 1" Presented issue"  2 "raised questions" 3"discussed" 4"protested" 5 "observed only"
+label values ParticipatedHow part
+
+label define absent 1"Didn't know about the meeting in time" 2 "The issues were not important to me" 3"I've no influence anyway" ///
+4"I don't understand the issues discussed" 5"I feel embarrassed" 6"I had a bad experience going in the past" 7"Sickness" 8"Old age" ///
+9" Lack of privacy for women" 10"Meeting held at an inconvenient place" 11"Have to sit with men" 12"Have to sit with women" ///
+13"Have to sit with person of other caste/religion" 14"Dislike for current VEC/SMC members" 15"Dislike for current Gram Pradhan" ///
+16"Not allowed by the head of the household"
+label values ReasonsNotAttending absent
+
+foreach var of varlist Roles1 - Roles4{
+label define `var'role 1"Monitoring the overall performance of school authorities regarding running of the school" ///
+2"Conducting awareness programs on girl child education" 3"Maintenance & upkeep/upgradation/construction of school buildings" ///
+4"Improvement of school environment" 5"Monitoring the attendance & performance of teachers" ///
+6"Discussing various complaints made by parents of children enrolled in school" 7"Ensuring proper sanitation facilities in school premises" ///
+8"Ensuring adequate drinking water facilities in school premises" 9"Addressing issues related to non-enrollment & drop-outs" ///
+10"Taking measures to improve the schooling habits of children" 11"No idea at all"
+label values `var' `var'role
+}
+save 73VillageEdu
+clear
+
+
+* using individual level data on health events, treatment & expenditure
+
+use HEALTH_CARE_8_1
+tostring state, ge(stateid)
+tostring dist_id , ge(distid)
+gen str3  villid =  string( village_id , "%03.0f")
+order villid, a( village_id )
+gen str4  hh =  string( new_hhid , "%04.0f")
+order hh, a( new_hhid )
+gen str2  mem =  string( new_memid , "%02.0f")
+order mem, a( new_memid )
+gen ID = stateid+ distid+ villid+ hh+ mem
+order ID, first
+drop stateid distid villid hh mem
+duplicates report ID
+gen double id = real( ID)
+order id, a(ID)
+format %13.0f id
+
+ren ( Q08_1_02 Q08_1_03 Q08_1_04 Q08_1_05 Q08_1_06 Q08_1_07 Q08_1_08 Q08_1_09 Q08_1_10 Q08_1_11 Q08_1_12 Q08_1_13 ///
+Q08_1_14 Q08_1_15 Q08_1_16 Q08_1_17 Q08_1_18 Q08_1_19) (PhysicChallenged WorkDaysMissedIllness SeekMedHelp HealthIssue1 ///
+TreatChoiceReason1 HealthIssue2 TreatChoiceReason2 HealthIssue3 TreatChoiceReason3 TreatmentCost TreatModePay DoctorFee ///
+DocModePay MedicineCost MedModePay HospitalCharge HostModePay ContriMedInsurance)
+
+label define pc 1"Yes" 2"No"
+label values PhysicChallenged pc
+
+label define med 1"Yes" 2"No"
+label values SeekMedHelp med
+
+foreach var of varlist HealthIssue1 HealthIssue2 HealthIssue3{
+label define `var'health 1"Birth or pre/post natal care" 2"Accident/disability" 3"Vision" 4"Respiratory problem" 5"Hearing problem" ///
+6"Digestive problem" 7"Mental problem" 8"Malaria" 9"Muscular pain" 10"Influenza/other fever" 11"Sexual disease/HIV" 12"TB" 13"Cholera"///
+ 14"Epilepsy" 15"Regular health check up" 16"Cough & cold" 17"Contagious disease" 18"Epidemics" 19"Heart problem" 20"Cancer" 21"Blood pressure" ///
+ 22"Dengue" 23"Bird flu" 24"Polio" 25"Diabetes" 26"Kidney ailments" 27"Hydrosil" 28"Anaemia" 29"Diarrhoea" 30"Blood pressure related problems"
+label values `var' `var'health
+}
+foreach var of varlist TreatChoiceReason1 TreatChoiceReason2 TreatChoiceReason3 {
+label define `var'treat 1"Cheap service" 2"Better service" 3"Was referred by Medical practitioner" 4"Was referred by friend/ relative" ///
+5"Near to the house" 6"Only place that has treatment for this ailment" 7 "Only place that was open on that day"
+label values `var' `var'treat
+}
+foreach var of varlist TreatModePay DocModePay MedModePay HostModePay{
+label define `var'mode 1"Cash" 2"Cheque" 3"Draft" 4"Installment/Credit" 5"Mobile wallet"
+label values `var' `var'mode
+}
+foreach var of varlist TreatmentCost DoctorFee MedicineCost HospitalCharge ContriMedInsurance{
+winsor2 `var', cuts(1, 99)
+}
+foreach var of varlist TreatmentCost DoctorFee MedicineCost HospitalCharge ContriMedInsurance{
+replace `var' = `var'_w
+drop `var'_w
+}
+save 81Health
+clear
+
+use GOVERNACE_10_1_A
+
+* Using individual level data on voting patterns
+
+use GOVERNACE_10_1_A
+ren Q10_1A_01 Representative
+label define rep 1"Panchayat president" 2"Ward member/representative" 3"MLA" 4"MP"
+label values Representative rep
+tab Representative, mi
+replace Representative = . if Representative>4
+
+ren ( Q10_1A_04 Q10_1A_05 Q10_1A_06 Q10_1A_07 Q10_1A_08 Q10_1A_09 Q10_1A_10 Q10_1A_11 Q10_1A_12 Q10_1A_13 Q10_1A_14 Q10_1A_15 Q10_1A_16 ///
+Q10_1A_17 Q10_1A_18) (Voted ChosenCandiContestLastElec VoteSameCandLastTime VoteWinner ReasonsNotVote SocStatusCand CasteCand ReligionCand ///
+TechQualificaCand KnowLocProbCand KnowNatlProbCand HonestyCand FamilyFriendCand AbilityRepVillProbGovt OthReasons)
+
+foreach var of varlist Voted ChosenCandiContestLastElec VoteSameCandLastTime VoteWinner SocStatusCand CasteCand ReligionCand TechQualificaCand ///
+KnowLocProbCand KnowNatlProbCand HonestyCand FamilyFriendCand AbilityRepVillProbGovt{
+replace `var' = . if  `var'>2 | `var' <1
+label define `var'cat 1"Yes" 2"No"
+label values `var' `var'cat
+}
+
+label define reason 1"Only one candidate" 2"Elections are not important in the household" 3"Indirect Election" 4"Not aware of elections" ///
+5"To protest" 6"Didn't like any of the candidates" 7"Indifference" 8"Not allowed to vote by elders" 9"Don't have voter id card" ///
+10"Don't have name in the voter list" 11"Prevented from voting through muscle power" 12"Not at home"
+label values ReasonsNotVote reason
+
+label define other 1"Told to do so by spouse" 2"Threatened by political party" 3"Offered monetary inducement" 4"Offered other inducements" ///
+5"Voted for the party not the candidate"
+label values OthReasons other
+
+tostring state, ge(stateid)
+tostring dist_id , ge(distid)
+gen str3  villid =  string( village_id , "%03.0f")
+order villid, a( village_id )
+gen str4  hh =  string( new_hhid , "%04.0f")
+order hh, a( new_hhid )
+gen str2  mem =  string( new_memid , "%02.0f")
+order mem, a( new_memid )
+gen ID = stateid+ distid+ villid+ hh+ mem
+order ID, first
+drop stateid distid villid hh mem
+gen double id = real( ID)
+order id, a(ID)
+format %13.0f id
+save 101AGovernance
+clear
+
+use GOVERNANCE_10_2
+
+*using household level data on participation in local groups.
+
+label define group 1"SHG for women" 2"Mother's Committee" 3"Other SHGs" 4"NGOs" 5"Religious groups" 6"Political Parties" ///
+7"Caste Association" 8"Village Development Committee" 9"Village Tribal Development Agency" 10"Village Education Committee" ///
+11"Committee on Irrigation" 12"Self-employed schemes" 13" Co-operatives" 14"Business Associations" 15"Caste Panchayat" ///
+16"Benefits rcvd from SHG for women" 17"Benefits rcvd. from other SHG"
+label values Q10_2_01 group
+ren (Q10_2_01 Q10_2_03 Q10_2_04 Q10_2_05 Q10_2_06 Q10_2_07 Q10_2_08 Q10_2_09 Q10_2_10) (NameOfGroup GroupExistInVillage ///
+PrefGroupForHelp WhetherMemberParticipates MemID1 MemID2 MemID3 MemID4 MemID5)
+label define part 1" Yes" 2"No"
+label values WhetherMemberParticipates part
+tostring state, ge(stateid)
+tostring dist_id , ge(distid)
+gen str3  villid =  string( village_id , "%03.0f")
+order villid, a( village_id )
+gen str4  hh =  string( new_hhid , "%04.0f")
+order hh, a( new_hhid )
+gen HHID = stateid+ distid+ villid+ hh
+order HHID, first
+gen double hhid = real( HHID)
+format hhid %11.0f
+order hhid, a(HHID)
+
+* for those members in the hh who participate in these groups, their ids were provided.
+* I created an unique 13-digit ids for these individuals so that, if required, they can be matched wuth the hh roster.
+
+gen str2 `var'_s = string(`var' , "%02.0f")
+foreach var of varlist MemID1 - MemID5{
+gen str2 `var'_s = string(`var' , "%02.0f")
+}
+drop MemID1 - MemID5
+ren( MemID1_s MemID2_s MemID3_s MemID4_s MemID5_s)(ID1 ID2 ID3 ID4 ID5)
+foreach var of varlist ID1 - ID5{
+replace `var' = stateid+ distid+ villid+ hh+`var' if `var' != "."
+}
+save 102Governance
+clear
+
+
+use GOVERNANCE_10_3_A_I
+
+* using household level data on participation in different welfare programs in the village - beneficiaries targeted at the household level.
+
+tab Q10_3A_01
+label define prog 1"BPL card - Antodya" 2"BPL card - less poor" 3"Other ration card" 4"Housing Support Scheme" 5"Sanitation Support Scheme" ///
+6"Indira Awas Yojana" 7"Accelerated Rural Water Supply Program" 8"Targeted Public Distribution System" 9"Annapurna" ///
+10"Total Sanitation Campaign/NBA/SBM" 11"Swajaldhara/NRDWP" 12"Samagra Awaas Yojana" 13"Fasal Bima Yojana"
+label values Q10_3A_01 prog
+
+ren ( Q10_3A_01 Q10_3A_03 Q10_3A_04 Q10_3A_05 Q10_3A_06 Q10_3A_07 Q10_3A_08 Q10_3A_09 Q10_3A_10 Q10_3A_11 Q10_3A_12 Q10_3A_13 ) ///
+(ProgramName PanchayatCode AwareProgExistVillage IsHouseHoldBeneficiary DidHhGetAllBenefits RcvdPercentBenefitEntitled ExtraMoneyGetBenefits ///
+BribeAmt DelayGetBenefits DelayInDays TargetBeneficiaryTransparent AmtRcvdProgram)
+
+
+foreach var of varlist AwareProgExistVillage IsHouseHoldBeneficiary DidHhGetAllBenefits ExtraMoneyGetBenefits DelayGetBenefits{
+replace `var' = . if `var' >2 | `var' <1
+label define `var'cat 1"Yes" 2"No"
+label values `var' `var'cat
+}
+tab BribeAmt
+replace BribeAmt = 40 if BribeAmt<40
+winsor2 AmtRcvdProgram, cuts(1 99.5)
+tab AmtRcvdProgram_w
+replace AmtRcvdProgram = AmtRcvdProgram_w
+drop AmtRcvdProgram_w
+label define trans 1"Very transparent" 2"Somewhat transparent" 3"Not transparent"
+label values TargetBeneficiaryTransparent trans
+tostring state, ge(stateid)
+tostring dist_id , ge(distid)
+gen str3  villid =  string( village_id , "%03.0f")
+order villid, a( village_id )
+gen str4  hh =  string( new_hhid , "%04.0f")
+order hh, a( new_hhid )
+gen HHID = stateid+ distid+ villid+ hh
+order HHID, first
+gen double hhid = real( HHID)
+format hhid %11.0f
+order hhid, a(HHID)
+save 103AGovernance
+clear
+
+
+use GOVERNANCE_10_3_A_II
+
+* using individual level data on participation in different welfare programs in the village - beneficiaries targeted at the individual level.
+
+label define prog 1"SGRY" 2"SGSY/NRLM" 3"ICDS" 4"Social Security Pension" 5"Mid-day meal program" 6"Business Support Program" ///
+7"Food for work program" 8"PMGY" 9"MGNREGA" 10"Credit cum Subsidy scheme" 11"Women centric program" 12"Scholarships" 13"PMJDY" 14"Atal Pension Yojana"
+label values Q10_3AII_01 prog
+
+ren ( Q10_3AII_01 Q10_3AII_03 Q10_3AII_04 Q10_3AII_05 Q10_3AII_06 Q10_3AII_07 Q10_3AII_08 Q10_3AII_09 Q10_3AII_10 Q10_3AII_11 ///
+Q10_3AII_12 Q10_3AII_13) (ProgramName PanchayatCode Beneficiary MemID GotAllBenefits GotPercentBenEntitled ExtraMoneyGetBenefits ///
+BribeAmt DelayRcvBenefits DelayInDays WasTargetTransparent AmtRcvdProgram)
+
+order MemID, a( new_hhid)
+foreach var of varlist GotAllBenefits ExtraMoneyGetBenefits DelayRcvBenefits{
+replace `var' = . if `var' >2 | `var' <1
+label define `var'cat 1"Yes" 2"No"
+label values `var' `var'cat
+}
+tab BribeAmt
+replace BribeAmt = 100 if BribeAmt<100
+label define trans 1"Very transparent" 2"Somewhat transparent" 3"Not transparent"
+label values WasTargetTransparent trans
+tab AmtRcvdProgram
+winsor2 AmtRcvdProgram, cuts(6 99.5)
+tab AmtRcvdProgram_w
+replace AmtRcvdProgram = AmtRcvdProgram_w
+drop AmtRcvdProgram_w
+tostring state, ge(stateid)
+tostring dist_id , ge(distid)
+gen str3  villid =  string( village_id , "%03.0f")
+order villid, a( village_id )
+gen str4  hh =  string( new_hhid , "%04.0f")
+order hh, a( new_hhid )
+gen str2  mem =  string( MemID , "%02.0f")
+order mem, a( MemID )
+gen ID = stateid+ distid+ villid+ hh+ mem
+order ID, first
+drop stateid distid villid hh mem
+gen double id = real( ID)
+order id, a(ID)
+format %13.0f id
+save 103AIIGovernance
+clear
+
+use GOVERNANCE_10_4
+ren ( Q10_4_01 Q10_4_03 Q10_4_04 Q10_4_05 Q10_4_06 Q10_4_07 Q10_4_08 Q10_4_09 Q10_4_10 Q10_4_11 Q10_4_12) ///
+(SlNo HowManyGSMeetHeld IssuesDiscussed AttendNoOfMeets ActiveParticipationMeet HowLongMeetLasts NoticePeriodGSMeets ///
+KnowledgeOfIssuesB4Hand AreMinutesMade CanAccessMinutes HaveAccessedMinutes)
+foreach var of varlist ActiveParticipationMeet CanAccessMinutes HaveAccessedMinutes{
+replace `var' = . if `var' >2 | `var' <1
+label define `var'cat 1"Yes" 2"No"
+label values `var' `var'cat
+}
+label define issue 1"Drinking water" 2"Sanitation & sewage" 3"Roads & transportation" 4"Irrigation canals, ponds, wells" ///
+5"Electrification" 6"Street lighting" 7"Credit & input subsidies" 8"Communication" 9"School & education" 10"Health facilities" ///
+11"Natural Resource management" 12"Employment schemes/food for work" 13"Social issues & ceremonies" 14"Women empowerment" ///
+15"Housing scheme" 16"Don't know/can't say"
+label values IssuesDiscussed issue
+
+label define notice 1"More than two weeks before meeting" 2"Between one & two weeks before meeting" ///
+3"From one day to a week before a meeting" 4"Only on the same day of meeting" 5"After the meeting is held" 6"Don't know/Can't say"
+label values NoticePeriodGSMeets notice
+
+label define minute 1"Always" 2"Sometimes" 3"Never" 4"Don't know/can't say"
+label values AreMinutesMade minute
+
+label define meet 1"Yes, often" 2"Yes, a few times" 3"Rarely" 4"No, never"
+label values KnowledgeOfIssuesB4Hand meet
+
+tab HowLongMeetLasts
+winsor2 HowLongMeetLasts, cuts(1 99)
+replace HowLongMeetLasts = HowLongMeetLasts_w
+drop HowLongMeetLasts_w
+
+tostring state, ge(stateid)
+tostring dist_id , ge(distid)
+gen str3  villid =  string( village_id , "%03.0f")
+order villid, a( village_id )
+gen str4  hh =  string( new_hhid , "%04.0f")
+order hh, a( new_hhid )
+gen str2  mem =  string( new_memid , "%02.0f")
+order mem, a( new_memid )
+gen ID = stateid+ distid+ villid+ hh+ mem
+order ID, first
+drop stateid distid villid hh mem
+gen double id = real( ID)
+order id, a(ID)
+format %13.0f id
+save 104Governance
+clear
+
+
+use GOVERNANCE_10_5
+
+*using individual level data on participation in local governance.
+
+ren ( Q10_5_01 Q10_5_03 Q10_5_04 Q10_5_05 Q10_5_06 Q10_5_07 Q10_5_08 Q10_5_09 Q10_5_10 Q10_5_11 Q10_5_12 Q10_5_13 ///
+Q10_5_14 Q10_5_15 Q10_5_16 Q10_5_17 Q10_5_18 Q10_5_19 Q10_5_20) (MeetingNo AttendedMeet Year Month MeetDuration ///
+IssueDisc1 IssueDisc2 IssueDisc3 IssuesRelevant ParticipationMode DidNotAttendWhy AttendIfDealtBeneficiarySelec ///
+AttendIfDealtDrinkWater AttendIfDealtIrrigation AttendIfDealtEduc AttendIfDealtHealth AttendIfDealtSanitation ///
+AttendIfDealtRoads AttendIfDealtFestivalArrange)
+
+foreach var of varlist AttendedMeet IssuesRelevant AttendIfDealtBeneficiarySelec - AttendIfDealtFestivalArrange{
+replace `var' = . if `var' >2 | `var' <1
+label define `var'cat 1"Yes" 2"No"
+label values `var' `var'cat
+}
+foreach var of varlist IssueDisc1 - IssueDisc3{
+label define `var'issue 1"Drinking water" 2"Sewage/Sanitation" 3"Roads/transportation" 4"Irrigation canals, ponds, wells"///
+ 5"Electrification" 6"Street lighting" 7"Credit & input subsidies" 8"Communication" 9"School & education" 10"Health facilities" ///
+ 11"Natural Resource management" 12"Employment schemes/food for work" 13"Social issues & ceremonies" 14"Women empowerment" ///
+ 15"Housing scheme" 16"Don't know/can't say"
+label values `var' `var'issue
+}
+label define abs 1"Didn't know about the meeting in time" 2"The issues were not important to me" 3"I have no influence anyway" ///
+4"I don't understand the issues discussed" 5"I feel embarrassed" 6"I had a bad experience in the past" 7"Sickness" 8"Old age" ///
+9"Lack of privacy for women" 10"Meeting held at an inconvenient place" 11"Have to sit with men" 12"Have to sit with women" ///
+13"Have to sit with person of other caste/religion" 14"Dislike for current pradhan" 15"Dislike for current GP members" ///
+16"Not allowed by the head of the household"
+label values DidNotAttendWhy abs
+
+label define part 1"Presented issue" 2"Raised questions" 3"Discussed" 4"Protested" 5"Observed only"
+label values ParticipationMode part
+
+tab Year
+replace Year = 2016 if Year == 216 | Year == 3016
+replace Year = 2014 if Year == 2041
+replace Year = . if Year<2000
+
+tab MeetDuration
+replace MeetDuration = 4 if MeetDuration>4 & MeetDuration != .
+
+use 105Governance
+tostring state, ge(stateid)
+tostring dist_id , ge(distid)
+gen str3  villid =  string( village_id , "%03.0f")
+order villid, a( village_id )
+gen str4  hh =  string( new_hhid , "%04.0f")
+order hh, a( new_hhid )
+gen str2  mem =  string( new_memid , "%02.0f")
+order mem, a( new_memid )
+gen ID = stateid+ distid+ villid+ hh+ mem
+order ID, first
+drop stateid distid villid hh mem
+gen double id = real( ID)
+order id, a(ID)
+format %13.0f id
+save 105Governance
+clear
+
+* The End!
+
